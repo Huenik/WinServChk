@@ -5,7 +5,7 @@ if not A_IsAdmin
 
 ;==========================================================================================================================================================
 ; Read the local version file, if it exists
-localVersionFile := "C:\ProgramData\WinServChk\gitVersion.json"
+localVersionFile := "C:\ProgramFiles\WinServChk\gitVersion.json"
 if FileExist(localVersionFile)
 {
     FileRead, localVersion, %localVersionFile%
@@ -20,11 +20,16 @@ else
 ; Define the GitHub repository API URL to get the latest commit info
 repo := "Huenik/WinServChk"
 apiUrl := "https://api.github.com/repos/" . repo . "/commits/main"
-tempPath := "C:\ProgramData\WinServChk\"
+tempPath := "C:\ProgramFiles\WinServChk\"
 jsonFile := tempPath . "latest_commit.json" ; Define the file to save the JSON response
 updater := tempPath . "Updater.ahk"
 updaterDl := "https://raw.githubusercontent.com/Huenik/WinServChk/main/updater.ahk"
 
+FileCreateDir, %tempPath%
+if ErrorLevel
+{
+    MsgBox, FileCreateDir for %tempPath% failed
+}
 ; Get committed version
 URLDownloadToFile, %apiUrl%, %jsonFile% ; Download the latest commit info as a JSON file
 if ErrorLevel
