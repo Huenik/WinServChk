@@ -52,11 +52,17 @@ if RegExMatch(jsonData, regex, match)
     commitSHA := match1
     ; MsgBox, The current commit SHA is: %commitSHA%`r`rREMOVE AFTER DEV ; Un-comment this line for debugging
 }
+else if RegExMatch(jsonData, "API rate limit exceeded", match)
+{
+    MsgBox, 16, Error, API rate limit exceeded.
+    ExitApp
+}
 else
 {
     MsgBox, 16, Error, SHA not identified.
     ExitApp
 }
+
 
 FileDelete, %jsonFile% ; Clean up by deleting the JSON file
 
