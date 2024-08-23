@@ -18,7 +18,8 @@ If !FileExist(tempPath) ; Ensure the tempPath directory exists
 
 If !FileExist(oldController) ; Ensure the tempPath directory exists
 {
-    FileDelete(oldController)
+    FileDelete,%oldController%
+    
 }
 
 ; Download the latest controller.ahk script
