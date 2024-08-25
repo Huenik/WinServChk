@@ -1,82 +1,98 @@
 ﻿#SingleInstance Force
 SetWorkingDir %A_ScriptDir%
-if not A_IsAdmin
-    Run *RunAs "%A_ScriptFullPath%"
 
-;==========================================================================================================================================================
-; Read the local version file, if it exists
-localVersionFile := "C:\ProgramFiles\WinServChk\gitVersion.json"
-if FileExist(localVersionFile)
+; Check if the script is running as the new controller or as the updater
+if !InStr(A_Args[1], "/updated")
 {
-    FileRead, localVersion, %localVersionFile%
-    if ErrorLevel != 0
+    if not A_IsAdmin
+        Run *RunAs "%A_ScriptFullPath%" "/updated"
+    
+    ; Define paths and URLs
+    localVersionFile := "C:\ProgramFiles\WinServChk\gitVersion.json"
+    repo := "Huenik/WinServChk"
+    apiUrl := "https://api.github.com/repos/" . repo . "/commits/main"
+    tempPath := "C:\ProgramFiles\WinServChk\"
+    jsonFile := tempPath . "latest_commit.json"
+    updaterDl := "https://raw.githubusercontent.com/Huenik/WinServChk/main/updater.ahk"
+    controllerDl := "https://raw.githubusercontent.com/Huenik/WinServChk/main/controller.ahk"
+    NewController := tempPath . "controller.ahk"
+    oldController := A_Desktop . "\WinServChk\controller.ahk"
+
+    ; Ensure tempPath directory exists
+    FileCreateDir, %tempPath%
+    if ErrorLevel
+    {
+        MsgBox, FileCreateDir for %tempPath% failed
+    }
+
+    ; Read the local version file, if it exists
+    if FileExist(localVersionFile)
+    {
+        FileRead, localVersion, %localVersionFile%
+        if ErrorLevel != 0
+            localVersion := ""
+    }
+    else
+    {
         localVersion := ""
-}
-else
-{
-    localVersion := ""
-}
+    }
 
-; Define the GitHub repository API URL to get the latest commit info
-repo := "Huenik/WinServChk"
-apiUrl := "https://api.github.com/repos/" . repo . "/commits/main"
-tempPath := "C:\ProgramFiles\WinServChk\"
-jsonFile := tempPath . "latest_commit.json" ; Define the file to save the JSON response
-updater := tempPath . "Updater.ahk"
-updaterDl := "https://raw.githubusercontent.com/Huenik/WinServChk/main/updater.ahk"
+    ; Get committed version
+    URLDownloadToFile, %apiUrl%, %jsonFile% ; Download the latest commit info as a JSON file
+    if ErrorLevel
+    {
+        MsgBox, 16, Error, Failed to download commit info.
+        ExitApp
+    }
 
-FileCreateDir, %tempPath%
-if ErrorLevel
-{
-    MsgBox, FileCreateDir for %tempPath% failed
-}
-; Get committed version
-URLDownloadToFile, %apiUrl%, %jsonFile% ; Download the latest commit info as a JSON file
-if ErrorLevel
-{
-    MsgBox, 16, Error, Failed to download commit info.
+    FileRead, jsonData, %jsonFile% ; Read the JSON file and extract the commit SHA
+    if ErrorLevel
+    {
+        MsgBox, 16, Error, Failed to read commit info.
+        ExitApp
+    }
+
+    ; Extract the commit SHA using regex
+    regex := """sha"":\s*""([a-f0-9]{40})"""
+    if RegExMatch(jsonData, regex, match)
+    {
+        commitSHA := match1
+        ; MsgBox, The current commit SHA is: %commitSHA%`r`rREMOVE AFTER DEV ; Un-comment this line for debugging
+    }
+    else if RegExMatch(jsonData, "API rate limit exceeded", match)
+    {
+        MsgBox, 16, Error, API rate limit exceeded.
+        ExitApp
+    }
+    else
+    {
+        MsgBox, 16, Error, SHA not identified.
+        ExitApp
+    }
+
+    FileDelete, %jsonFile% ; Clean up by deleting the JSON file
+
+    ; Download the latest controller.ahk script and replace the old one
+    If FileExist(oldController)
+    {
+        FileDelete, %oldController%
+    }
+    URLDownloadToFile, %controllerDl%, %NewController%
+    FileCreateShortcut, %NewController%, %A_Desktop%\WinServChk\WinServChk.lnk, %A_Desktop%\WinServChk\
+
+    ; Run the downloaded controller script with the "/updated" flag
+    Run, %NewController% /updated, %tempPath%
     ExitApp
 }
 
-FileRead, jsonData, %jsonFile% ; Read the JSON file and extract the commit SHA
-if ErrorLevel
-{
-    MsgBox, 16, Error, Failed to read commit info.
-    ExitApp
-}
-
-; Extract the commit SHA using regex
-regex := """sha"":\s*""([a-f0-9]{40})"""
-if RegExMatch(jsonData, regex, match)
-{
-    commitSHA := match1
-    ; MsgBox, The current commit SHA is: %commitSHA%`r`rREMOVE AFTER DEV ; Un-comment this line for debugging
-}
-else if RegExMatch(jsonData, "API rate limit exceeded", match)
-{
-    MsgBox, 16, Error, API rate limit exceeded.
-    ExitApp
-}
-else
-{
-    MsgBox, 16, Error, SHA not identified.
-    ExitApp
-}
-
-
-FileDelete, %jsonFile% ; Clean up by deleting the JSON file
-
-; Compare versions and run updater if needed
-URLDownloadToFile, %updaterDl%, %updater%
-Run %updater%
-ExitApp
+; Code after this point runs only when the script is executed with the "/updated" flag
 
 ;==========================================================================================================================================================
 updateDoneOrSkipped:
 ; Ensure the necessary files exist before proceeding
-defaultServicesFile := A_ScriptDir . "\ListOfDefaultWindowsServices.txt"
+Win10Win10defaultServicesFile := A_ScriptDir . "\ListOfDefaultWindowsServices.txt"
 allowedServicesFile := A_ScriptDir . "\ListOfAllowedServices.txt"
-If (!FileExist(defaultServicesFile) || !FileExist(allowedServicesFile)) {
+If (!FileExist(Win10defaultServicesFile) || !FileExist(allowedServicesFile)) {
     MsgBox, 16, Error, Required files are missing.`nPlease make sure `ListOfDefaultWindowsServices.txt` and `ListOfAllowedServices.txt` are present in the script's directory.
     ExitApp
 }
@@ -105,7 +121,7 @@ fileContent := RegExReplace(fileContent, "\s*\r", "`r") ; Remove all double whit
 FileDelete, %outputFile% ; Save the modified content back to the output file
 FileAppend, %fileContent%, %outputFile%
 Sleep, 2000
-FileRead, DefaultServices, %defaultServicesFile% ; Read ListOfDefaultWindowsServices.txt
+FileRead, DefaultServices, %Win10defaultServicesFile% ; Read ListOfDefaultWindowsServices.txt
 FileRead, AllowedServices, %allowedServicesFile% ; Read ListOfAllowedServices.txt
 DefaultServices := DefaultServices . "`r" . AllowedServices ; Concatenate Default and Allowed Services
 FileRead, RunningServices, %outputFile% ; Read RunningServices.txt
@@ -182,12 +198,14 @@ for each, runningService in RunningArray ; Loop through RunningServices and chec
 	}
 }
 LV_ModifyCol(2, "Sort") ; Sort by Status column
-Gui, Show, , Huenik's Windows Service Checker (DEV); Show GUI
+Gui, Show, , Huenik's Windows Service Checker (DEV) ; Show GUI
+
 if (servicesToRemove.Length() = 0) { ; Check if servicesToRemove array is empty
 	GuiControl, Hide, vShowRemovalListButton ; Hide the Show Removal List button if the array is empty
 } else {
 	GuiControl, Show, vShowRemovalListButton ; Show the Show Removal List button if the array is not empty
 }
+
 return
 
 ServiceSelected:
@@ -200,7 +218,7 @@ If (SelectedService != "")
 	GuiControl,, SelectedServiceSCQCReadOnly, %SelectedServiceSCQC% ; Update the control with the selected service configuration
 	FileDelete, temp.txt ; Clear temp.txt after reading
 }
-
+/*
 ; move buttons depending on how many lines are in SelectedServiceSCQC
 LineCount := StrSplit(SelectedServiceSCQC, "`n")
 LineCount := LineCount.length()
@@ -216,6 +234,7 @@ If (LineCount > 2)
 	GuiControl, Move, ChangeDescription, "x" 450 "y" 480+moveButtonsYBy "w" 100 "h" 30
 	Gui, Show, , Windows Service Checker ; Show GUI
 }
+*/
 return
 
 Refresh:
